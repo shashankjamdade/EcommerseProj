@@ -1,6 +1,7 @@
 package org.example.authservice.service;
 
 import org.example.authservice.dto.AuthResponse;
+import org.example.authservice.dto.AdminUserDetailsResponse;
 import org.example.authservice.dto.LoginRequest;
 import org.example.authservice.dto.LogoutResponse;
 import org.example.authservice.dto.RegisterRequest;
@@ -115,6 +116,21 @@ public class AuthService {
                         currentUser.assignedRoles(),
                         currentUser.activeRole()
                 )));
+    }
+
+    public Mono<AdminUserDetailsResponse> getUserByEmail(String email) {
+        String normalizedEmail = normalizeEmail(email);
+
+        return userAccountRepository.findByEmail(normalizedEmail)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found for the provided email")))
+                .map(userAccount -> new AdminUserDetailsResponse(
+                        userAccount.getId().toString(),
+                        userAccount.getEmail(),
+                        userAccount.getRoles(),
+                        userAccount.isActive(),
+                        userAccount.getCreatedAt(),
+                        userAccount.getUpdatedAt()
+                ));
     }
 
     public Mono<LogoutResponse> logout(CurrentUser currentUser) {

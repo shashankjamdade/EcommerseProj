@@ -1,6 +1,8 @@
 package org.example.authservice.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -13,7 +15,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Table("users")
-public class UserAccount {
+public class UserAccount implements Persistable<UUID> {
 
     @Id
     private UUID id;
@@ -34,6 +36,9 @@ public class UserAccount {
     @Column("updated_at")
     private Instant updatedAt;
 
+    @Transient
+    private boolean isNew = true;
+
     public UserAccount() {
     }
 
@@ -53,6 +58,7 @@ public class UserAccount {
         this.updatedAt = updatedAt;
     }
 
+    @Override
     public UUID getId() {
         return id;
     }
@@ -126,6 +132,16 @@ public class UserAccount {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    public UserAccount markPersisted() {
+        this.isNew = false;
+        return this;
     }
 
     @Override

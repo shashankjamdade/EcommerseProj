@@ -197,6 +197,46 @@ class AuthServiceTest {
                 .verifyComplete();
     }
 
+    @Test
+    void shouldFetchUserByEmailForAdminFlow() {
+        UUID userId = UUID.fromString("12121212-3434-5656-7878-909090909090");
+        UserAccount userAccount = new UserAccount(
+                userId,
+                "shopkeeper@example.com",
+                "stored-hash",
+                Set.of(Role.SHOPKEEPER, Role.USER),
+                true,
+                Instant.parse("2026-09-18T09:00:00Z"),
+                Instant.parse("2026-09-18T10:00:00Z")
+        );
+
+        when(userAccountRepository.findByEmail("shopkeeper@example.com")).thenReturn(Mono.just(userAccount));
+
+        StepVerifier.create(authService.getUserByEmail(" Shopkeeper@Example.com "))
+                .assertNext(response -> {
+                    assertThat(response.id()).isEqualTo(userId.toString());
+                    assertThat(response.email()).isEqualTo("shopkeeper@example.com");
+                    assertThat(response.roles()).containsExactlyInAnyOrder(Role.SHOPKEEPER, Role.USER);
+                    assertThat(response.active()).isTrue();
+                    assertThat(response.createdAt()).isEqualTo(Instant.parse("2026-09-18T09:00:00Z"));
+                    assertThat(response.updatedAt()).isEqualTo(Instant.parse("2026-09-18T10:00:00Z"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenLookupEmailDoesNotExist() {
+        when(userAccountRepository.findByEmail("missing@example.com")).thenReturn(Mono.empty());
+
+        StepVerifier.create(authService.getUserByEmail("missing@example.com"))
+                .expectErrorSatisfies(throwable -> {
+                    assertThat(throwable).isInstanceOf(ResponseStatusException.class);
+                    ResponseStatusException exception = (ResponseStatusException) throwable;
+                    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                })
+                .verify();
+    }
+
     private void assertSuccessfulLogin(AuthResponse response, UserAccount userAccount, AuthToken authToken) {
         assertThat(response.accessToken()).isEqualTo("jwt-token");
         assertThat(response.tokenType()).isEqualTo("Bearer");

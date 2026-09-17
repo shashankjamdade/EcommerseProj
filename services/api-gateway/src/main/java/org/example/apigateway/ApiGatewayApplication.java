@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 
 @SpringBootApplication
 public class ApiGatewayApplication {
@@ -14,26 +15,33 @@ public class ApiGatewayApplication {
     }
 
     @Bean
-    public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
+    public RouteLocator customRouteLocator(RouteLocatorBuilder builder,
+                                           @Value("${services.auth-service.url:http://localhost:8081}") String authServiceUrl,
+                                           @Value("${services.product-service.url:http://localhost:8082}") String productServiceUrl,
+                                           @Value("${services.order-service.url:http://localhost:8083}") String orderServiceUrl,
+                                           @Value("${services.inventory-service.url:http://localhost:8084}") String inventoryServiceUrl,
+                                           @Value("${services.cart-service.url:http://localhost:8085}") String cartServiceUrl,
+                                           @Value("${services.payment-service.url:http://localhost:8086}") String paymentServiceUrl) {
         return builder.routes()
                 .route("auth-service", r -> r
                         .path("/auth/**")
-                        .uri("http://auth-service:8081"))
+                        .filters(f -> f.rewritePath("/auth/(?<segment>.*)", "/api/v1/auth/${segment}"))
+                        .uri(authServiceUrl))
                 .route("product-service", r -> r
                         .path("/products/**")
-                        .uri("http://product-service:8082"))
-                .route("inventory-service", r -> r
-                        .path("/inventory/**")
-                        .uri("http://inventory-service:8083"))
+                        .uri(productServiceUrl))
                 .route("cart-service", r -> r
                         .path("/cart/**")
-                        .uri("http://cart-service:8084"))
+                        .uri(cartServiceUrl))
                 .route("order-service", r -> r
                         .path("/orders/**")
-                        .uri("http://order-service:8085"))
+                        .uri(orderServiceUrl))
+                .route("inventory-service", r -> r
+                        .path("/inventory/**")
+                        .uri(inventoryServiceUrl))
                 .route("payment-service", r -> r
                         .path("/payments/**")
-                        .uri("http://payment-service:8086"))
+                        .uri(paymentServiceUrl))
                 .build();
     }
 }

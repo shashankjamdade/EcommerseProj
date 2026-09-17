@@ -1,6 +1,8 @@
 package org.example.authservice.model;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -9,7 +11,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Table("auth_sessions")
-public class AuthSession {
+public class AuthSession implements Persistable<UUID> {
 
     @Id
     private UUID id;
@@ -35,6 +37,9 @@ public class AuthSession {
     @Column("is_expired")
     private boolean expired;
 
+    @Transient
+    private boolean isNew = true;
+
     public AuthSession() {
     }
 
@@ -56,6 +61,7 @@ public class AuthSession {
         this.expired = expired;
     }
 
+    @Override
     public UUID getId() {
         return id;
     }
@@ -126,6 +132,16 @@ public class AuthSession {
 
     public void setExpired(boolean expired) {
         this.expired = expired;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    public AuthSession markPersisted() {
+        this.isNew = false;
+        return this;
     }
 
     @Override

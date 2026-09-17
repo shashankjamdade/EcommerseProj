@@ -2,9 +2,9 @@ spring:
   application:
     name: auth-service
   r2dbc:
-    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/ecommerce}
-    username: ${SPRING_R2DBC_USERNAME:ecommerce}
-    password: ${SPRING_R2DBC_PASSWORD:ecommerce}
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/postgres}
+    username: ${SPRING_R2DBC_USERNAME:shashankjamdade}
+    password: ${SPRING_R2DBC_PASSWORD:}
     pool:
       enabled: true
       initial-size: 5
