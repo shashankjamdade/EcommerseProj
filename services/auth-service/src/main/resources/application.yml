@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: auth-service
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/ecommerce}
+    username: ${SPRING_R2DBC_USERNAME:ecommerce}
+    password: ${SPRING_R2DBC_PASSWORD:ecommerce}
+    pool:
+      enabled: true
+      initial-size: 5
+      max-size: 30
+      max-idle-time: 30m
+  sql:
+    init:
+      mode: always
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:change-me-to-a-secret-key-with-at-least-32-bytes}
+    expiration: 15m
+    issuer: auth-service
+
+logging:
+  level:
+    org.springframework.security: INFO
+    org.example.authservice: INFO
+

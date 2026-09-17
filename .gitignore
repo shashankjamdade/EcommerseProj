@@ -1,0 +1,41 @@
+# Maven / Spring Boot
+target/
+*.jar
+*.war
+*.ear
+*.class
+.mvn/
+.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+.springBeans
+.factorypath
+.apt_generated/
+.sts4-cache/
+bin/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local env / secrets
+.env
+.env.*
+*.pid

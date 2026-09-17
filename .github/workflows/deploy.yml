@@ -1,0 +1,126 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/**'
+      - 'infrastructure/k8s/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  CLUSTER_NAME: ecommerce-cluster
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ecommerce --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy database resources
+        run: |
+          kubectl apply -f infrastructure/k8s/database/ || true
+
+      - name: Deploy infrastructure (Redis, Kafka)
+        run: |
+          kubectl apply -f infrastructure/k8s/infrastructure/ || true
+
+      - name: Deploy services
+        run: |
+          for service_dir in infrastructure/k8s/*/; do
+            if [ -f "$service_dir/deployment.yaml" ]; then
+              echo "Deploying $(basename $service_dir)..."
+              kubectl apply -f "$service_dir/deployment.yaml" --namespace=ecommerce
+            fi
+          done
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment -n ecommerce --all --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n ecommerce
+          kubectl get svc -n ecommerce
+
+      - name: Run smoke tests
+        run: |
+          chmod +x ./scripts/smoke-tests.sh
+          ./scripts/smoke-tests.sh
+
+      - name: Send Slack notification
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment ${{ job.status }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Rollback deployment
+        run: |
+          aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+          kubectl rollout undo deployment -n ecommerce --all
+        continue-on-error: true
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+    strategy:
+      matrix:
+        service: [api-gateway, auth-service, product-service, inventory-service, cart-service, order-service, payment-service, notification-service]
+
+    steps:
+      - name: Health check for ${{ matrix.service }}
+        run: |
+          for i in {1..30}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ matrix.service }}:8080/actuator/health || echo "000")
+            if [ "$response" = "200" ]; then
+              echo "${{ matrix.service }} is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: Service returned $response"
+            sleep 5
+          done
+          echo "${{ matrix.service }} health check failed"
+          exit 1
+
