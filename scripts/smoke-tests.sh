@@ -93,30 +93,32 @@ if [ "$failed_services" -eq 0 ]; then
         ((++failed_services))
     fi
 
-    # Test 2: Product Service through Gateway
-    echo -n "Test 2: Product Service endpoint... "
+    # Test 2: Product Service greeting through Gateway
+    echo -n "Test 2: Product Service greeting... "
     response=$(curl -s -w "%{http_code}" -o response.json \
         --connect-timeout $TIMEOUT \
         --max-time $TIMEOUT \
-        "$GATEWAY_URL/products/health" 2>/dev/null || echo "000")
+        "$GATEWAY_URL/products/greeting" 2>/dev/null || echo "000")
 
-    if [ "$response" = "200" ] || [ "$response" = "404" ]; then
+    if [ "$response" = "200" ]; then
         echo -e "${GREEN}PASS${NC}"
     else
-        echo -e "${YELLOW}SKIP${NC} (Status: $response)"
+        echo -e "${RED}FAIL${NC} (Status: $response)"
+        ((++failed_services))
     fi
 
-    # Test 3: Auth Service through Gateway
-    echo -n "Test 3: Auth Service endpoint... "
+    # Test 3: Auth Service greeting through Gateway
+    echo -n "Test 3: Auth Service greeting... "
     response=$(curl -s -w "%{http_code}" -o response.json \
         --connect-timeout $TIMEOUT \
         --max-time $TIMEOUT \
-        "$GATEWAY_URL/auth/health" 2>/dev/null || echo "000")
+        "$GATEWAY_URL/auth/greeting" 2>/dev/null || echo "000")
 
-    if [ "$response" = "200" ] || [ "$response" = "404" ]; then
+    if [ "$response" = "200" ]; then
         echo -e "${GREEN}PASS${NC}"
     else
-        echo -e "${YELLOW}SKIP${NC} (Status: $response)"
+        echo -e "${RED}FAIL${NC} (Status: $response)"
+        ((++failed_services))
     fi
 
     # Cleanup

@@ -40,7 +40,9 @@ public class SessionService {
                 null,
                 false
         );
-        return authSessionRepository.save(authSession);
+        return authSessionRepository.findOpenSessionsByUserIdAndRole(userId, activeRole.name())
+                .concatMap(existingSession -> expireSession(existingSession, now))
+                .then(authSessionRepository.save(authSession));
     }
 
     public Mono<AuthSession> validateActiveSession(UUID sessionId, UUID userId, Role activeRole) {

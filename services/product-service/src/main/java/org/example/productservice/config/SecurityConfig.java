@@ -1,36 +1,35 @@
-package org.example.authservice.config;
+package org.example.productservice.config;
 
-import org.example.authservice.security.JwtAuthenticationManager;
-import org.example.authservice.security.JwtProperties;
-import org.example.authservice.security.JwtRefreshWebFilter;
-import org.example.authservice.security.JwtServerAuthenticationConverter;
+import org.example.productservice.security.AuthServiceAuthenticationManager;
+import org.example.productservice.security.AuthServiceClientProperties;
+import org.example.productservice.security.BearerTokenServerAuthenticationConverter;
+import org.example.productservice.security.CacheProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Clock;
 
 @Configuration
 @EnableWebFluxSecurity
 @EnableReactiveMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({AuthServiceClientProperties.class, CacheProperties.class})
 public class SecurityConfig {
 
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http,
-                                                         AuthenticationWebFilter jwtAuthenticationWebFilter,
-                                                         JwtRefreshWebFilter jwtRefreshWebFilter) {
+                                                         AuthenticationWebFilter authenticationWebFilter) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .cors(Customizer.withDefaults())
@@ -48,24 +47,26 @@ public class SecurityConfig {
                             return exchange.getResponse().setComplete();
                         }))
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/greeting", "/actuator/health", "/actuator/info").permitAll()
+                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .pathMatchers("/products/admin/**").hasRole("ADMIN")
+                        .pathMatchers(HttpMethod.POST, "/products/*/reviews").authenticated()
+                        .pathMatchers(HttpMethod.GET, "/products", "/products/**").permitAll()
                         .anyExchange().authenticated())
-                .addFilterAt(jwtAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-                .addFilterAfter(jwtRefreshWebFilter, SecurityWebFiltersOrder.AUTHORIZATION)
+                .addFilterAt(authenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();
     }
 
     @Bean
-    public AuthenticationWebFilter jwtAuthenticationWebFilter(JwtAuthenticationManager jwtAuthenticationManager) {
-        AuthenticationWebFilter authenticationWebFilter = new AuthenticationWebFilter(jwtAuthenticationManager);
+    public AuthenticationWebFilter authenticationWebFilter(AuthServiceAuthenticationManager authenticationManager) {
+        AuthenticationWebFilter authenticationWebFilter = new AuthenticationWebFilter(authenticationManager);
         authenticationWebFilter.setSecurityContextRepository(NoOpServerSecurityContextRepository.getInstance());
-        authenticationWebFilter.setServerAuthenticationConverter(new JwtServerAuthenticationConverter());
+        authenticationWebFilter.setServerAuthenticationConverter(new BearerTokenServerAuthenticationConverter());
         return authenticationWebFilter;
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public WebClient authWebClient(WebClient.Builder builder, AuthServiceClientProperties properties) {
+        return builder.baseUrl(properties.getBaseUrl()).build();
     }
 
     @Bean

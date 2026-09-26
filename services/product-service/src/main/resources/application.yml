@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: product-service
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/postgres}
+    username: ${SPRING_R2DBC_USERNAME:shashankjamdade}
+    password: ${SPRING_R2DBC_PASSWORD:}
+    pool:
+      enabled: true
+      initial-size: 5
+      max-size: 30
+      max-idle-time: 30m
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2s
+      repositories:
+        enabled: false
+  sql:
+    init:
+      mode: always
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  health:
+    redis:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+app:
+  auth:
+    base-url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  cache:
+    product-ttl: 10m
+    category-ttl: 30m
+
+logging:
+  level:
+    org.example.productservice: INFO
+    org.springframework.security: INFO
+

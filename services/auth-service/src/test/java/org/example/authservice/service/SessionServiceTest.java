@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -20,10 +21,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,10 +52,12 @@ class SessionServiceTest {
 
     @Test
     void shouldCreateActiveSessionWithInitialExpiry() {
+        UUID userId = UUID.fromString("11111111-2222-3333-4444-555555555555");
+
+        when(authSessionRepository.findOpenSessionsByUserIdAndRole(userId, Role.SHOPKEEPER.name()))
+                .thenReturn(Flux.empty());
         when(authSessionRepository.save(any(AuthSession.class)))
                 .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-
-        UUID userId = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
         StepVerifier.create(sessionService.createSession(userId, Role.SHOPKEEPER))
                 .assertNext(session -> {
@@ -66,6 +72,55 @@ class SessionServiceTest {
 
         verify(authSessionRepository).save(sessionCaptor.capture());
         assertThat(sessionCaptor.getValue().getId()).isNotNull();
+    }
+
+    @Test
+    void shouldExpireExistingOpenSessionsBeforeCreatingNewOne() {
+        UUID userId = UUID.fromString("66666666-7777-8888-9999-000000000000");
+        AuthSession existingSession = new AuthSession(
+                UUID.fromString("12121212-1212-1212-1212-121212121212"),
+                userId,
+                Role.USER,
+                Instant.parse("2026-09-18T11:40:00Z"),
+                Instant.parse("2026-09-18T11:55:00Z"),
+                Instant.parse("2026-09-18T12:10:00Z"),
+                null,
+                false
+        ).markPersisted();
+
+        when(authSessionRepository.findOpenSessionsByUserIdAndRole(userId, Role.USER.name()))
+                .thenReturn(Flux.just(existingSession));
+        when(authSessionRepository.save(any(AuthSession.class)))
+                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+        StepVerifier.create(sessionService.createSession(userId, Role.USER))
+                .assertNext(session -> {
+                    assertThat(session.getId()).isNotEqualTo(existingSession.getId());
+                    assertThat(session.getUserId()).isEqualTo(userId);
+                    assertThat(session.getActiveRole()).isEqualTo(Role.USER);
+                    assertThat(session.isExpired()).isFalse();
+                })
+                .verifyComplete();
+
+        verify(authSessionRepository, times(2)).save(sessionCaptor.capture());
+        List<AuthSession> savedSessions = sessionCaptor.getAllValues();
+        AuthSession expiredExisting = savedSessions.stream()
+                .filter(session -> session.getId().equals(existingSession.getId()))
+                .findFirst()
+                .orElseThrow();
+        AuthSession newSession = savedSessions.stream()
+                .filter(session -> !session.getId().equals(existingSession.getId()))
+                .min(Comparator.comparing(AuthSession::getLoginTime))
+                .orElseThrow();
+
+        assertThat(expiredExisting.getId()).isEqualTo(existingSession.getId());
+        assertThat(expiredExisting.isExpired()).isTrue();
+        assertThat(expiredExisting.getLogoutTime()).isEqualTo(Instant.parse("2026-09-18T12:00:00Z"));
+        assertThat(expiredExisting.getExpiresAt()).isEqualTo(Instant.parse("2026-09-18T12:00:00Z"));
+
+        assertThat(newSession.getUserId()).isEqualTo(userId);
+        assertThat(newSession.getActiveRole()).isEqualTo(Role.USER);
+        assertThat(newSession.getLoginTime()).isEqualTo(Instant.parse("2026-09-18T12:00:00Z"));
     }
 
     @Test
